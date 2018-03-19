@@ -334,7 +334,7 @@ func (r *Runner) Run() (<-chan int, error) {
 	return child.ExitCh(), nil
 }
 
-func applyTemplate(contents, key string) (string, error) {
+func applyFormatTemplate(contents, key string) (string, error) {
 	funcs := template.FuncMap{
 		"key": func() (string, error) {
 			return key, nil
@@ -379,7 +379,7 @@ func (r *Runner) appendPrefixes(
 
 		// If the user specified a custom format, apply that here.
 		if config.StringPresent(cp.Format) {
-			key, err = applyTemplate(config.StringVal(cp.Format), key)
+			key, err = applyFormatTemplate(config.StringVal(cp.Format), key)
 			if err != nil {
 				return err
 			}
@@ -444,7 +444,7 @@ func (r *Runner) appendSecrets(
 
 		// If the user specified a custom format, apply that here.
 		if config.StringPresent(cp.Format) {
-			key, err = applyTemplate(config.StringVal(cp.Format), key)
+			key, err = applyFormatTemplate(config.StringVal(cp.Format), key)
 			if err != nil {
 				return err
 			}
