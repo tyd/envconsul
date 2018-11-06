@@ -334,7 +334,7 @@ func (r *Runner) Run() (<-chan int, error) {
 	return child.ExitCh(), nil
 }
 
-func applyTemplate(contents, key string) (string, error) {
+func applyFormatTemplate(contents, key string) (string, error) {
 	funcs := template.FuncMap{
 		"key": func() (string, error) {
 			return key, nil
@@ -342,6 +342,30 @@ func applyTemplate(contents, key string) (string, error) {
 	}
 
 	tmpl, err := template.New("filter").Funcs(funcs).Parse(contents)
+	if err != nil {
+		return "", nil
+	}
+
+	var buf bytes.Buffer
+	if err = tmpl.Execute(&buf, nil); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
+}
+
+func applyPathTemplate(contents string) (string, error) {
+	funcs := template.FuncMap{
+		"env": func(key string) (string, error) {
+			envVar, exists := os.LookupEnv(key)
+			if !exists {
+				return "", fmt.Errorf("unable to read environment variable %q in template %q", key, contents)
+			}
+			return envVar, nil
+		},
+	}
+
+	tmpl, err := template.New("path").Funcs(funcs).Parse(contents)
 	if err != nil {
 		return "", nil
 	}
@@ -379,7 +403,7 @@ func (r *Runner) appendPrefixes(
 
 		// If the user specified a custom format, apply that here.
 		if config.StringPresent(cp.Format) {
-			key, err = applyTemplate(config.StringVal(cp.Format), key)
+			key, err = applyFormatTemplate(config.StringVal(cp.Format), key)
 			if err != nil {
 				return err
 			}
@@ -436,7 +460,11 @@ func (r *Runner) appendSecrets(
 				return fmt.Errorf("missing dependency %s", d)
 			}
 
-			path := InvalidRegexp.ReplaceAllString(config.StringVal(pc.Path), "_")
+			path, err := applyPathTemplate(config.StringVal(pc.Path))
+			if err != nil {
+				return err
+			}
+			path = InvalidRegexp.ReplaceAllString(path, "_")
 
 			// Prefix the key value with the path value.
 			key = fmt.Sprintf("%s_%s", path, key)
@@ -444,7 +472,7 @@ func (r *Runner) appendSecrets(
 
 		// If the user specified a custom format, apply that here.
 		if config.StringPresent(cp.Format) {
-			key, err = applyTemplate(config.StringVal(cp.Format), key)
+			key, err = applyFormatTemplate(config.StringVal(cp.Format), key)
 			if err != nil {
 				return err
 			}
@@ -510,7 +538,11 @@ func (r *Runner) init() error {
 
 	// Parse and add consul dependencies
 	for _, p := range *r.config.Prefixes {
-		d, err := dep.NewKVListQuery(config.StringVal(p.Path))
+		path, err := applyPathTemplate(config.StringVal(p.Path))
+		if err != nil {
+			return err
+		}
+		d, err := dep.NewKVListQuery(path)
 		if err != nil {
 			return err
 		}
@@ -523,7 +555,11 @@ func (r *Runner) init() error {
 	// vault; that would expose a security hole since access to consul is
 	// typically less controlled than access to vault.
 	for _, s := range *r.config.Secrets {
-		path := config.StringVal(s.Path)
+		path, err := applyPathTemplate(config.StringVal(s.Path))
+		if err != nil {
+			return err
+		}
+
 		log.Printf("[INFO] looking at vault %s", path)
 		d, err := dep.NewVaultReadQuery(path)
 		if err != nil {
