@@ -1,5 +1,12 @@
 ## envconsul CHANGELOG
 
+## v0.7.4a (tyd build)
+
+IMPROVEMENTS:
+
+  * Support Vault KV2 when there are multiple keys in a secret [GH-192]
+  * Allow users to use ENV vars in prefix paths using Go templates [GH-167]
+
 ## v0.7.4 (UNRELEASED)
 
 IMPROVEMENTS:
